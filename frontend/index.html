@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>VaultKey — Secure Password Manager</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d0d14;--surface:#13131e;--surface2:#1a1a28;--border:#252535;
+  --accent:#00d9a3;--accent2:#7c3aed;--danger:#ef4444;--warn:#f59e0b;
+  --text:#f1f1f8;--muted:#6b6b85;
+  --font:'Inter',sans-serif;--mono:'Space Mono',monospace;
+  --radius:10px;--tr:0.15s ease;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 20% 20%,rgba(0,217,163,.06),transparent 60%),radial-gradient(ellipse at 80% 80%,rgba(124,58,237,.05),transparent 60%);pointer-events:none;z-index:0}
+
+.screen{display:none;position:relative;z-index:1}
+.screen.active{display:flex}
+
+/* ── AUTH ── */
+#auth-screen{min-height:100vh;align-items:center;justify-content:center;padding:20px}
+.auth-box{width:100%;max-width:420px;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:36px;position:relative;overflow:hidden}
+.auth-box::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+.auth-brand{text-align:center;margin-bottom:28px}
+.auth-brand-icon{font-size:36px;margin-bottom:8px}
+.auth-brand h1{font-size:22px;font-weight:700}
+.auth-brand p{font-size:11px;color:var(--muted);margin-top:4px;font-family:var(--mono);letter-spacing:.1em}
+.tabs{display:flex;background:var(--bg);border-radius:8px;padding:4px;margin-bottom:24px;gap:4px}
+.tab{flex:1;padding:9px;border:none;background:transparent;color:var(--muted);font-family:var(--font);font-size:13px;font-weight:600;border-radius:6px;cursor:pointer;transition:var(--tr)}
+.tab.active{background:var(--surface2);color:var(--accent)}
+.panel{display:none}
+.panel.active{display:block}
+.field{margin-bottom:16px}
+.field label{display:block;font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:7px;font-family:var(--mono)}
+.field input,.field select,.field textarea{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:13px;padding:11px 14px;outline:none;transition:var(--tr)}
+.field input:focus,.field select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,217,163,.1)}
+.field input::placeholder{color:var(--muted)}
+.input-row{display:flex;gap:8px}
+.input-row input{flex:1}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 18px;border:none;border-radius:8px;font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;transition:var(--tr);white-space:nowrap}
+.btn-primary{background:var(--accent);color:#000;width:100%;margin-top:4px}
+.btn-primary:hover{background:#00c492;transform:translateY(-1px)}
+.btn-primary:disabled{opacity:.6;cursor:not-allowed;transform:none}
+.btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
+.btn-secondary:hover{border-color:var(--accent);color:var(--accent)}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-danger:hover{background:#dc2626}
+.btn-ghost{background:transparent;color:var(--muted);padding:8px}
+.btn-ghost:hover{color:var(--text);background:var(--surface2)}
+.btn-sm{padding:7px 12px;font-size:12px}
+.btn-icon{width:32px;height:32px;padding:0;border-radius:6px}
+.btn-link{background:none;border:none;color:var(--accent);font-size:12px;cursor:pointer;font-family:var(--font);padding:0;text-decoration:underline}
+.msg{font-size:12px;padding:10px 14px;border-radius:7px;margin-top:12px;font-family:var(--mono);display:none}
+.msg.error{display:block;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);color:var(--danger)}
+.msg.success{display:block;background:rgba(0,217,163,.1);border:1px solid rgba(0,217,163,.25);color:var(--accent)}
+.strength-bar{height:3px;background:var(--border);border-radius:99px;margin-top:8px;overflow:hidden}
+.strength-fill{height:100%;border-radius:99px;transition:width .3s,background .3s}
+.strength-text{font-size:10px;color:var(--muted);font-family:var(--mono);margin-top:4px}
+.hint{font-size:12px;color:var(--muted);text-align:center;margin-top:16px}
+.hint a,.hint button.btn-link{color:var(--accent);cursor:pointer}
+
+/* OTP boxes */
+.otp-row{display:flex;gap:10px;justify-content:center;margin:8px 0}
+.otp-row input{width:48px;height:54px;text-align:center;font-size:22px;font-weight:700;font-family:var(--mono);background:var(--bg);border:2px solid var(--border);border-radius:10px;color:var(--accent);outline:none;transition:var(--tr)}
+.otp-row input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,217,163,.15)}
+
+/* ── APP ── */
+#app-screen{flex-direction:column;min-height:100vh}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:0 20px;height:56px;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100}
+.topbar-brand{font-family:var(--mono);font-size:14px;font-weight:700;color:var(--accent)}
+.topbar-right{display:flex;align-items:center;gap:12px}
+.user-chip{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);font-family:var(--mono)}
+.avatar{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--accent2),var(--accent));display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;flex-shrink:0}
+.app-body{display:flex;flex:1}
+.sidebar{width:220px;background:var(--surface);border-right:1px solid var(--border);padding:16px 10px;flex-shrink:0;display:flex;flex-direction:column}
+.sidebar-label{font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);font-family:var(--mono);padding:0 8px;margin:16px 0 6px}
+.sidebar-label:first-child{margin-top:0}
+.nav-item{display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:7px;cursor:pointer;font-size:13px;color:var(--muted);transition:var(--tr);border:1px solid transparent;user-select:none}
+.nav-item:hover{background:var(--surface2);color:var(--text)}
+.nav-item.active{background:rgba(0,217,163,.08);color:var(--accent);border-color:rgba(0,217,163,.15)}
+.nav-count{margin-left:auto;font-family:var(--mono);font-size:10px;background:var(--surface2);padding:2px 6px;border-radius:99px}
+.nav-item.active .nav-count{background:rgba(0,217,163,.15);color:var(--accent)}
+.sidebar-bottom{margin-top:auto;padding-top:16px;border-top:1px solid var(--border)}
+.main{flex:1;overflow-y:auto;padding:24px}
+.toolbar{display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap}
+.search-wrap{flex:1;min-width:180px;position:relative}
+.search-wrap input{padding-left:36px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:13px;padding:11px 14px 11px 36px;width:100%;outline:none;transition:var(--tr)}
+.search-wrap input:focus{border-color:var(--accent)}
+.search-icon{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none}
+.page-title{font-size:20px;font-weight:700;margin-bottom:20px}
+.vault-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:12px}
+.entry-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;transition:var(--tr)}
+.entry-card:hover{border-color:rgba(0,217,163,.25);box-shadow:0 4px 20px rgba(0,0,0,.3);transform:translateY(-1px)}
+.card-top{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.card-icon{width:36px;height:36px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.card-info{flex:1;min-width:0}
+.card-name{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card-user{font-size:11px;color:var(--muted);font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card-btns{display:flex;gap:4px;opacity:0;transition:var(--tr)}
+.entry-card:hover .card-btns{opacity:1}
+.card-field{display:flex;align-items:center;gap:8px;background:var(--bg);border-radius:6px;padding:7px 10px;margin-bottom:6px;font-family:var(--mono);font-size:12px}
+.card-field-label{color:var(--muted);font-size:10px;letter-spacing:.08em;text-transform:uppercase;min-width:50px}
+.card-field-val{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card-field-val.masked{letter-spacing:.15em;color:var(--muted)}
+.card-footer{display:flex;align-items:center;justify-content:space-between;margin-top:10px}
+.badge{font-size:10px;font-family:var(--mono);padding:2px 8px;border-radius:99px;border:1px solid;text-transform:uppercase;letter-spacing:.08em}
+.badge-general{color:var(--muted);border-color:var(--border)}
+.badge-work{color:#60a5fa;border-color:rgba(96,165,250,.3);background:rgba(96,165,250,.08)}
+.badge-social{color:#c084fc;border-color:rgba(192,132,252,.3);background:rgba(192,132,252,.08)}
+.badge-finance{color:var(--warn);border-color:rgba(245,158,11,.3);background:rgba(245,158,11,.08)}
+.badge-email{color:#34d399;border-color:rgba(52,211,153,.3);background:rgba(52,211,153,.08)}
+.badge-shopping{color:#f472b6;border-color:rgba(244,114,182,.3);background:rgba(244,114,182,.08)}
+.badge-entertainment{color:#fb923c;border-color:rgba(251,146,60,.3);background:rgba(251,146,60,.08)}
+.copy-btn{background:none;border:none;color:var(--muted);cursor:pointer;padding:3px 5px;border-radius:4px;font-size:12px;transition:var(--tr)}
+.copy-btn:hover{color:var(--accent);background:rgba(0,217,163,.1)}
+.empty-state{grid-column:1/-1;text-align:center;padding:80px 20px;color:var(--muted)}
+.empty-state .ei{font-size:52px;margin-bottom:16px;opacity:.5}
+.empty-state h3{font-size:16px;font-weight:600;margin-bottom:8px;color:var(--text)}
+
+/* ── MODAL ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);backdrop-filter:blur(4px);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;pointer-events:none;transition:opacity .2s}
+.modal-overlay.open{opacity:1;pointer-events:all}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:14px;width:100%;max-width:460px;max-height:90vh;overflow-y:auto;transform:translateY(12px);transition:transform .2s}
+.modal-overlay.open .modal{transform:translateY(0)}
+.modal-head{display:flex;align-items:center;justify-content:space-between;padding:18px 22px 14px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);z-index:1}
+.modal-head h3{font-size:15px;font-weight:700}
+.modal-body{padding:22px}
+.modal-foot{display:flex;gap:10px;padding:0 22px 18px;justify-content:flex-end}
+
+/* ── TOAST ── */
+#toasts{position:fixed;bottom:20px;right:20px;z-index:999;display:flex;flex-direction:column;gap:8px}
+.toast-item{padding:11px 16px;border-radius:8px;font-size:12px;font-family:var(--mono);color:var(--text);box-shadow:0 4px 16px rgba(0,0,0,.4);animation:slideUp .25s ease;background:var(--surface2)}
+.toast-item.error{border-left:3px solid var(--danger)}
+.toast-item.success{border-left:3px solid var(--accent)}
+@keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:99px}
+@media(max-width:600px){.sidebar{display:none}.main{padding:14px}.vault-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<!-- ══ AUTH SCREEN ══ -->
+<div id="auth-screen" class="screen active">
+  <div class="auth-box">
+    <div class="auth-brand">
+      <div class="auth-brand-icon">🔐</div>
+      <h1>VaultKey</h1>
+      <p>ZERO-KNOWLEDGE PASSWORD VAULT</p>
+    </div>
+
+    <div class="tabs" id="auth-tabs">
+      <button class="tab active" onclick="switchTab('login',this)">Login</button>
+      <button class="tab" onclick="switchTab('signup',this)">Sign Up</button>
+    </div>
+
+    <!-- LOGIN -->
+    <div id="panel-login" class="panel active">
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="l-email" placeholder="you@example.com"/>
+      </div>
+      <div class="field">
+        <label>Master Password</label>
+        <div class="input-row">
+          <input type="password" id="l-password" placeholder="••••••••"/>
+          <button class="btn btn-secondary btn-sm" onclick="togglePw('l-password',this)">Show</button>
+        </div>
+      </div>
+      <button class="btn btn-primary" id="btn-login" onclick="doLogin()">Unlock Vault</button>
+      <div class="msg" id="login-msg"></div>
+      <p class="hint" style="margin-top:10px">
+        <button class="btn-link" onclick="showForgot()">Forgot password?</button>
+      </p>
+      <p class="hint">No account? <a onclick="switchTab('signup',null)">Create one</a></p>
+    </div>
+
+    <!-- SIGNUP -->
+    <div id="panel-signup" class="panel">
+      <div class="field">
+        <label>Username</label>
+        <input type="text" id="s-username" placeholder="john_doe"/>
+      </div>
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="s-email" placeholder="you@example.com"/>
+      </div>
+      <div class="field">
+        <label>Master Password</label>
+        <div class="input-row">
+          <input type="password" id="s-password" placeholder="Min 8 chars" oninput="checkStrength(this.value)"/>
+          <button class="btn btn-secondary btn-sm" onclick="togglePw('s-password',this)">Show</button>
+        </div>
+        <div class="strength-bar"><div class="strength-fill" id="s-fill" style="width:0"></div></div>
+        <div class="strength-text" id="s-strength"></div>
+      </div>
+      <div class="field">
+        <label>Confirm Password</label>
+        <input type="password" id="s-confirm" placeholder="Repeat password"/>
+      </div>
+      <button class="btn btn-primary" id="btn-signup" onclick="doSignup()">Create Account</button>
+      <div class="msg" id="signup-msg"></div>
+      <p class="hint">Have an account? <a onclick="switchTab('login',null)">Login</a></p>
+    </div>
+
+    <!-- FORGOT PASSWORD — Step 1: Enter Email -->
+    <div id="panel-forgot" class="panel">
+      <p style="font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.6">Enter your registered email and we'll send you a 6-digit OTP to reset your password.</p>
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="f-email" placeholder="you@example.com"/>
+      </div>
+      <button class="btn btn-primary" id="btn-send-otp" onclick="doSendOtp()">Send OTP</button>
+      <div class="msg" id="forgot-msg"></div>
+      <p class="hint"><a onclick="switchTab('login',null)">← Back to login</a></p>
+    </div>
+
+    <!-- FORGOT PASSWORD — Step 2: Enter OTP -->
+    <div id="panel-otp" class="panel">
+      <p style="font-size:13px;color:var(--muted);margin-bottom:6px;line-height:1.6">Enter the 6-digit OTP sent to <strong id="otp-email-hint" style="color:var(--text)"></strong></p>
+      <p style="font-size:11px;color:var(--muted);margin-bottom:20px;font-family:var(--mono)">Expires in 10 minutes</p>
+      <div class="otp-row">
+        <input class="otp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]"/>
+        <input class="otp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]"/>
+        <input class="otp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]"/>
+        <input class="otp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]"/>
+        <input class="otp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]"/>
+        <input class="otp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]"/>
+      </div>
+      <button class="btn btn-primary" style="margin-top:16px" id="btn-verify-otp" onclick="doVerifyOtp()">Verify OTP</button>
+      <div class="msg" id="otp-msg"></div>
+      <p class="hint" style="margin-top:10px">
+        Didn't receive it? <button class="btn-link" onclick="doSendOtp()">Resend OTP</button>
+      </p>
+    </div>
+
+    <!-- FORGOT PASSWORD — Step 3: New Password -->
+    <div id="panel-reset" class="panel">
+      <p style="font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.6">Choose a new strong master password.</p>
+      <div class="field">
+        <label>New Password</label>
+        <div class="input-row">
+          <input type="password" id="r-password" placeholder="Min 8 chars" oninput="checkStrengthR(this.value)"/>
+          <button class="btn btn-secondary btn-sm" onclick="togglePw('r-password',this)">Show</button>
+        </div>
+        <div class="strength-bar"><div class="strength-fill" id="r-fill" style="width:0"></div></div>
+        <div class="strength-text" id="r-strength"></div>
+      </div>
+      <div class="field">
+        <label>Confirm Password</label>
+        <input type="password" id="r-confirm" placeholder="Repeat new password"/>
+      </div>
+      <button class="btn btn-primary" id="btn-reset" onclick="doResetPassword()">Reset Password</button>
+      <div class="msg" id="reset-msg"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══ APP SCREEN ══ -->
+<div id="app-screen" class="screen">
+  <div class="topbar">
+    <div class="topbar-brand">🔐 VaultKey</div>
+    <div class="topbar-right">
+      <div class="user-chip">
+        <div class="avatar" id="av">?</div>
+        <span id="uname"></span>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="doLogout()">Sign Out</button>
+    </div>
+  </div>
+  <div class="app-body">
+    <div class="sidebar">
+      <div class="sidebar-label">Vault</div>
+      <div class="nav-item active" onclick="setFilter('all',this)"><span>🗂</span> All Entries <span class="nav-count" id="cnt-all">0</span></div>
+      <div class="nav-item" onclick="setFilter('fav',this)"><span>⭐</span> Favourites <span class="nav-count" id="cnt-fav">0</span></div>
+      <div class="sidebar-label">Categories</div>
+      <div class="nav-item" onclick="setFilter('General',this)"><span>🌐</span> General <span class="nav-count" id="cnt-General">0</span></div>
+      <div class="nav-item" onclick="setFilter('Work',this)"><span>💼</span> Work <span class="nav-count" id="cnt-Work">0</span></div>
+      <div class="nav-item" onclick="setFilter('Social',this)"><span>👥</span> Social <span class="nav-count" id="cnt-Social">0</span></div>
+      <div class="nav-item" onclick="setFilter('Finance',this)"><span>💳</span> Finance <span class="nav-count" id="cnt-Finance">0</span></div>
+      <div class="nav-item" onclick="setFilter('Email',this)"><span>📧</span> Email <span class="nav-count" id="cnt-Email">0</span></div>
+      <div class="nav-item" onclick="setFilter('Shopping',this)"><span>🛒</span> Shopping <span class="nav-count" id="cnt-Shopping">0</span></div>
+      <div class="nav-item" onclick="setFilter('Entertainment',this)"><span>🎬</span> Entertainment <span class="nav-count" id="cnt-Entertainment">0</span></div>
+      <div class="sidebar-bottom">
+        <button class="btn btn-ghost" style="width:100%;justify-content:flex-start" onclick="doLogout()">🚪 Sign Out</button>
+      </div>
+    </div>
+    <div class="main">
+      <div class="toolbar">
+        <div class="search-wrap">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="search" placeholder="Search vault…" oninput="renderVault()"/>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="openAdd()">+ New Entry</button>
+      </div>
+      <div class="page-title" id="page-title">All Entries</div>
+      <div class="vault-grid" id="vault-grid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ ENTRY MODAL ══ -->
+<div class="modal-overlay" id="entry-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="modal-title">New Entry</h3>
+      <button class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field"><label>Site / App Name *</label><input type="text" id="m-name" placeholder="e.g. GitHub"/></div>
+      <div class="field">
+        <label>URL</label>
+        <div class="input-row">
+          <input type="url" id="m-url" placeholder="https://github.com"/>
+          <button class="btn btn-secondary btn-sm" onclick="openUrl()" title="Open website">🔗 Open</button>
+        </div>
+      </div>
+      <div class="field"><label>Username / Email *</label><input type="text" id="m-username" placeholder="you@email.com"/></div>
+      <div class="field">
+        <label>Password *</label>
+        <div class="input-row">
+          <input type="password" id="m-password" placeholder="••••••••" oninput="checkStrength2(this.value)"/>
+          <button class="btn btn-secondary btn-sm" onclick="togglePw('m-password',this)">Show</button>
+          <button class="btn btn-secondary btn-sm" onclick="genPw()" title="Generate">⚡</button>
+        </div>
+        <div class="strength-bar"><div class="strength-fill" id="m-fill" style="width:0"></div></div>
+        <div class="strength-text" id="m-strength"></div>
+      </div>
+      <div class="field">
+        <label>Category</label>
+        <select id="m-category">
+          <option>General</option><option>Work</option><option>Social</option>
+          <option>Finance</option><option>Email</option><option>Shopping</option><option>Entertainment</option>
+        </select>
+      </div>
+      <div class="field"><label>Notes</label><textarea id="m-notes" rows="2" placeholder="Optional…" style="resize:vertical;width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:13px;padding:11px 14px;outline:none"></textarea></div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><input type="checkbox" id="m-fav"/> ⭐ Mark as favourite</label>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-danger btn-sm" id="m-delete" style="display:none;margin-right:auto" onclick="doDelete()">Delete</button>
+      <button class="btn btn-secondary btn-sm" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary btn-sm" onclick="doSave()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<script>
+const API_BASE = 'http://127.0.0.1:5000/api';
+let token = localStorage.getItem('vk_token') || '';
+let currentUser = JSON.parse(localStorage.getItem('vk_user') || 'null');
+let entries = [], filter = 'all', editId = null;
+let forgotEmail = '', verifiedOtp = '';
+
+if (token && currentUser) showApp();
+
+// ── OTP input auto-focus ──────────────────────────────
+document.querySelectorAll('.otp-digit').forEach((inp, i, arr) => {
+  inp.addEventListener('input', () => {
+    inp.value = inp.value.replace(/\D/g,'');
+    if (inp.value && i < arr.length-1) arr[i+1].focus();
+  });
+  inp.addEventListener('keydown', e => {
+    if (e.key==='Backspace' && !inp.value && i>0) arr[i-1].focus();
+  });
+});
+
+// ── Tab switching ─────────────────────────────────────
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  else document.querySelectorAll('.tab').forEach(t=>{
+    if((name==='login'&&t.textContent==='Login')||(name==='signup'&&t.textContent==='Sign Up'))t.classList.add('active');
+  });
+  document.getElementById('panel-'+name).classList.add('active');
+  document.getElementById('auth-tabs').style.display = ['login','signup'].includes(name)?'flex':'none';
+}
+
+function showForgot() { switchTab('forgot', null); }
+
+// ── Login ─────────────────────────────────────────────
+async function doLogin() {
+  const email=v('l-email'), password=v('l-password');
+  if (!email||!password){showMsg('login-msg','Fill in all fields','error');return;}
+  setBtn('btn-login',true,'Unlocking…');
+  try {
+    const r = await api('POST','/auth/login',{email,password},false);
+    token=r.access_token; currentUser=r.user;
+    localStorage.setItem('vk_token',token);
+    localStorage.setItem('vk_user',JSON.stringify(currentUser));
+    showApp();
+  } catch(e){ showMsg('login-msg',e.message||'Login failed','error'); }
+  finally { setBtn('btn-login',false,'Unlock Vault'); }
+}
+
+// ── Signup ────────────────────────────────────────────
+async function doSignup() {
+  const username=v('s-username'),email=v('s-email'),password=v('s-password'),confirm=v('s-confirm');
+  if (!username||!email||!password||!confirm){showMsg('signup-msg','Fill in all fields','error');return;}
+  if (password!==confirm){showMsg('signup-msg','Passwords do not match','error');return;}
+  if (password.length<8){showMsg('signup-msg','Password too short','error');return;}
+  setBtn('btn-signup',true,'Creating…');
+  try {
+    const r = await api('POST','/auth/signup',{username,email,password},false);
+    token=r.access_token; currentUser=r.user;
+    localStorage.setItem('vk_token',token);
+    localStorage.setItem('vk_user',JSON.stringify(currentUser));
+    showMsg('signup-msg','Account created! Loading vault…','success');
+    setTimeout(showApp,700);
+  } catch(e){ showMsg('signup-msg',e.message||'Registration failed','error'); }
+  finally { setBtn('btn-signup',false,'Create Account'); }
+}
+
+// ── Forgot — Step 1: Send OTP ─────────────────────────
+async function doSendOtp() {
+  const email = v('f-email');
+  if (!email){showMsg('forgot-msg','Enter your email','error');return;}
+  setBtn('btn-send-otp',true,'Sending…');
+  try {
+    await api('POST','/auth/forgot-password',{email},false);
+    forgotEmail = email;
+    document.getElementById('otp-email-hint').textContent = email;
+    document.querySelectorAll('.otp-digit').forEach(i=>i.value='');
+    showMsg('forgot-msg','OTP sent! Check your email.','success');
+    setTimeout(()=>switchTab('otp',null), 1000);
+  } catch(e){ showMsg('forgot-msg',e.message||'Failed to send OTP','error'); }
+  finally { setBtn('btn-send-otp',false,'Send OTP'); }
+}
+
+// ── Forgot — Step 2: Verify OTP ──────────────────────
+async function doVerifyOtp() {
+  const otp = Array.from(document.querySelectorAll('.otp-digit')).map(i=>i.value).join('');
+  if (otp.length<6){showMsg('otp-msg','Enter the complete 6-digit OTP','error');return;}
+  setBtn('btn-verify-otp',true,'Verifying…');
+  try {
+    await api('POST','/auth/verify-otp',{email:forgotEmail,otp},false);
+    verifiedOtp = otp;
+    showMsg('otp-msg','OTP verified!','success');
+    setTimeout(()=>switchTab('reset',null), 800);
+  } catch(e){ showMsg('otp-msg',e.message||'Invalid OTP','error'); }
+  finally { setBtn('btn-verify-otp',false,'Verify OTP'); }
+}
+
+// ── Forgot — Step 3: Reset Password ──────────────────
+async function doResetPassword() {
+  const password=v('r-password'), confirm=v('r-confirm');
+  if (!password||!confirm){showMsg('reset-msg','Fill in all fields','error');return;}
+  if (password!==confirm){showMsg('reset-msg','Passwords do not match','error');return;}
+  if (password.length<8){showMsg('reset-msg','Password too short','error');return;}
+  setBtn('btn-reset',true,'Resetting…');
+  try {
+    await api('POST','/auth/reset-password',{email:forgotEmail,otp:verifiedOtp,password},false);
+    showMsg('reset-msg','Password reset! Redirecting to login…','success');
+    setTimeout(()=>{ switchTab('login',null); },1500);
+  } catch(e){ showMsg('reset-msg',e.message||'Reset failed','error'); }
+  finally { setBtn('btn-reset',false,'Reset Password'); }
+}
+
+function doLogout() {
+  token=''; currentUser=null; entries=[];
+  localStorage.removeItem('vk_token'); localStorage.removeItem('vk_user');
+  document.getElementById('auth-screen').classList.add('active');
+  document.getElementById('app-screen').classList.remove('active');
+  switchTab('login',null);
+}
+
+function showApp() {
+  document.getElementById('auth-screen').classList.remove('active');
+  document.getElementById('app-screen').classList.add('active');
+  if (currentUser) {
+    document.getElementById('uname').textContent = currentUser.username||'';
+    document.getElementById('av').textContent = (currentUser.username||'?')[0].toUpperCase();
+  }
+  loadVault();
+}
+
+// ── Vault ─────────────────────────────────────────────
+async function loadVault() {
+  try {
+    const r = await api('GET','/vault/entries');
+    entries = r.entries||[];
+    renderVault(); updateCounts();
+  } catch(e){ toast('Failed to load vault','error'); }
+}
+
+function renderVault() {
+  const grid=document.getElementById('vault-grid');
+  const q=document.getElementById('search').value.toLowerCase();
+  const titles={all:'All Entries',fav:'Favourites'};
+  document.getElementById('page-title').textContent=titles[filter]||filter;
+  let list=entries.filter(e=>{
+    if(filter==='fav') return e.favourite;
+    if(filter!=='all') return e.category===filter;
+    return true;
+  });
+  if(q) list=list.filter(e=>(e.name||'').toLowerCase().includes(q)||(e.username||'').toLowerCase().includes(q)||(e.url||'').toLowerCase().includes(q));
+  if(!list.length){
+    grid.innerHTML=`<div class="empty-state"><div class="ei">🔐</div><h3>${entries.length?'No results':'Vault is empty'}</h3><p>${entries.length?'Try a different search.':'Click &quot;+ New Entry&quot; to add your first password.'}</p></div>`;
+    return;
+  }
+  const icons={General:'🌐',Work:'💼',Social:'👥',Finance:'💳',Email:'📧',Shopping:'🛒',Entertainment:'🎬'};
+  grid.innerHTML=list.map(e=>`
+    <div class="entry-card">
+      <div class="card-top">
+        <div class="card-icon">${icons[e.category]||'📋'}</div>
+        <div class="card-info">
+          <div class="card-name">${esc(e.name)} ${e.favourite?'⭐':''}</div>
+          <div class="card-user">${esc(e.username)}</div>
+        </div>
+        <div class="card-btns">
+          ${e.url ? `<button class="btn btn-ghost btn-icon" onclick="window.open('${e.url}','_blank')" title="Open website">🔗</button>` : ''}
+          <button class="btn btn-ghost btn-icon" onclick="openEdit(${e.id})" title="Edit">✏️</button>
+        </div>
+      </div>
+      <div class="card-field">
+        <span class="card-field-label">User</span>
+        <span class="card-field-val">${esc(e.username)}</span>
+        <button class="copy-btn" onclick="copyText('${encodeURIComponent(e.username)}','Username')">📋</button>
+      </div>
+      <div class="card-field">
+        <span class="card-field-label">Pass</span>
+        <span class="card-field-val masked" id="pw-${e.id}">••••••••</span>
+        <button class="copy-btn" onclick="revealPw(${e.id},'${encodeURIComponent(e.password)}')">👁</button>
+        <button class="copy-btn" onclick="copyText('${encodeURIComponent(e.password)}','Password')">📋</button>
+      </div>
+      <div class="card-footer">
+        <span class="badge badge-${(e.category||'general').toLowerCase()}">${e.category||'General'}</span>
+        <span style="font-size:11px;color:var(--muted);font-family:var(--mono)">${pwStrength(e.password).label}</span>
+      </div>
+    </div>`).join('');
+}
+
+function updateCounts() {
+  document.getElementById('cnt-all').textContent=entries.length;
+  document.getElementById('cnt-fav').textContent=entries.filter(e=>e.favourite).length;
+  ['General','Work','Social','Finance','Email','Shopping','Entertainment'].forEach(c=>{
+    const el=document.getElementById('cnt-'+c);
+    if(el) el.textContent=entries.filter(e=>e.category===c).length;
+  });
+}
+
+function setFilter(f,el) {
+  filter=f;
+  document.querySelectorAll('.nav-item').forEach(i=>i.classList.remove('active'));
+  if(el) el.classList.add('active');
+  renderVault();
+}
+
+// ── Modal ─────────────────────────────────────────────
+function openAdd() {
+  editId=null;
+  document.getElementById('modal-title').textContent='New Entry';
+  ['m-name','m-url','m-username','m-password','m-notes'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('m-category').value='General';
+  document.getElementById('m-fav').checked=false;
+  document.getElementById('m-delete').style.display='none';
+  document.getElementById('m-fill').style.width='0';
+  document.getElementById('m-strength').textContent='';
+  document.getElementById('entry-modal').classList.add('open');
+}
+
+function openEdit(id) {
+  const e=entries.find(x=>x.id===id); if(!e) return;
+  editId=id;
+  document.getElementById('modal-title').textContent='Edit Entry';
+  document.getElementById('m-name').value=e.name||'';
+  document.getElementById('m-url').value=e.url||'';
+  document.getElementById('m-username').value=e.username||'';
+  document.getElementById('m-password').value=e.password||'';
+  document.getElementById('m-notes').value=e.notes||'';
+  document.getElementById('m-category').value=e.category||'General';
+  document.getElementById('m-fav').checked=!!e.favourite;
+  document.getElementById('m-delete').style.display='inline-flex';
+  checkStrength2(e.password||'');
+  document.getElementById('entry-modal').classList.add('open');
+}
+
+function closeModal(){ document.getElementById('entry-modal').classList.remove('open'); }
+document.getElementById('entry-modal').addEventListener('click',function(e){ if(e.target===this) closeModal(); });
+
+async function doSave() {
+  const name=v('m-name'),username=v('m-username'),password=v('m-password');
+  if(!name||!username||!password){toast('Name, username and password required','error');return;}
+  const payload={name,username,password,url:v('m-url'),category:document.getElementById('m-category').value,notes:v('m-notes'),favourite:document.getElementById('m-fav').checked};
+  try {
+    if(editId){ await api('PUT','/vault/entries/'+editId,payload); toast('Entry updated ✓'); }
+    else { await api('POST','/vault/entries',payload); toast('Entry added ✓'); }
+    closeModal(); await loadVault();
+  } catch(e){ toast(e.message||'Failed to save','error'); }
+}
+
+async function doDelete() {
+  if(!editId||!confirm('Delete this entry?')) return;
+  try { await api('DELETE','/vault/entries/'+editId); toast('Entry deleted'); closeModal(); await loadVault(); }
+  catch(e){ toast('Failed to delete','error'); }
+}
+
+// ── Helpers ───────────────────────────────────────────
+function revealPw(id,encoded) {
+  const el=document.getElementById('pw-'+id); if(!el) return;
+  if(el.classList.contains('masked')){
+    el.textContent=decodeURIComponent(encoded); el.classList.remove('masked');
+    setTimeout(()=>{ el.textContent='••••••••'; el.classList.add('masked'); },5000);
+  } else { el.textContent='••••••••'; el.classList.add('masked'); }
+}
+function copyText(encoded,label){ navigator.clipboard.writeText(decodeURIComponent(encoded)).then(()=>toast(label+' copied!')); }
+function togglePw(id,btn){ const el=document.getElementById(id); el.type=el.type==='password'?'text':'password'; if(btn) btn.textContent=el.type==='password'?'Show':'Hide'; }
+function genPw(){
+  const c='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
+  const arr=new Uint32Array(16); crypto.getRandomValues(arr);
+  const pw=Array.from(arr).map(x=>c[x%c.length]).join('');
+  document.getElementById('m-password').value=pw;
+  document.getElementById('m-password').type='text';
+  checkStrength2(pw); toast('Password generated!');
+}
+function pwStrength(pw){
+  if(!pw) return{pct:0,label:'',color:'var(--danger)'};
+  let s=0;
+  if(pw.length>=8)s++; if(pw.length>=12)s++;
+  if(/[A-Z]/.test(pw))s++; if(/[a-z]/.test(pw))s++;
+  if(/[0-9]/.test(pw))s++; if(/[^A-Za-z0-9]/.test(pw))s++;
+  if(s<=2) return{pct:20,label:'Weak',color:'var(--danger)'};
+  if(s<=3) return{pct:45,label:'Fair',color:'var(--warn)'};
+  if(s<=4) return{pct:70,label:'Good',color:'#60a5fa'};
+  return{pct:100,label:'Strong',color:'var(--accent)'};
+}
+function checkStrength(pw){ const s=pwStrength(pw); document.getElementById('s-fill').style.width=s.pct+'%'; document.getElementById('s-fill').style.background=s.color; document.getElementById('s-strength').textContent=pw?s.label:''; document.getElementById('s-strength').style.color=s.color; }
+function checkStrength2(pw){ const s=pwStrength(pw); document.getElementById('m-fill').style.width=s.pct+'%'; document.getElementById('m-fill').style.background=s.color; document.getElementById('m-strength').textContent=pw?s.label:''; document.getElementById('m-strength').style.color=s.color; }
+function checkStrengthR(pw){ const s=pwStrength(pw); document.getElementById('r-fill').style.width=s.pct+'%'; document.getElementById('r-fill').style.background=s.color; document.getElementById('r-strength').textContent=pw?s.label:''; document.getElementById('r-strength').style.color=s.color; }
+function openUrl(){
+  const url = document.getElementById('m-url').value.trim();
+  if(!url){ toast('No URL entered','error'); return; }
+  window.open(url, '_blank');
+}
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function v(id){ return(document.getElementById(id).value||'').trim(); }
+function showMsg(id,msg,type){ const el=document.getElementById(id); el.textContent=msg; el.className='msg '+type; }
+function setBtn(id,loading,loadText){ const el=document.getElementById(id); el.disabled=loading; el.textContent=loading?loadText:el.dataset.label||el.textContent; }
+function toast(msg,type='success'){ const c=document.getElementById('toasts'); const el=document.createElement('div'); el.className='toast-item '+type; el.textContent=msg; c.appendChild(el); setTimeout(()=>el.remove(),3000); }
+
+async function api(method,path,body=null,auth=true){
+  const headers={'Content-Type':'application/json'};
+  if(auth&&token) headers['Authorization']='Bearer '+token;
+  const res=await fetch(API_BASE+path,{method,headers,body:body?JSON.stringify(body):undefined});
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(data.error||'Request failed');
+  return data;
+}
+
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape') closeModal();
+  if(e.key==='Enter'&&document.getElementById('auth-screen').classList.contains('active')){
+    const active=document.querySelector('.panel.active');
+    if(active?.id==='panel-login') doLogin();
+    else if(active?.id==='panel-signup') doSignup();
+    else if(active?.id==='panel-forgot') doSendOtp();
+    else if(active?.id==='panel-otp') doVerifyOtp();
+    else if(active?.id==='panel-reset') doResetPassword();
+  }
+});
+</script>
+</body>
+</html>

@@ -1,40 +1,40 @@
 import os
-import pymysql
+import psycopg2
+import psycopg2.extras
 from flask import g
 
-_cfg = {}
+_db_url = None
 
 def init_db(app):
-    global _cfg
-    _cfg = {
-        'host':        os.getenv('DB_HOST', '127.0.0.1'),
-        'port':        int(os.getenv('DB_PORT', 3306)),
-        'user':        os.getenv('DB_USER', 'root'),
-        'password':    os.getenv('DB_PASSWORD', ''),
-        'database':    os.getenv('DB_NAME', 'vaultkey'),
-        'charset':     'utf8mb4',
-        'cursorclass': pymysql.cursors.DictCursor,
-    }
+    global _db_url
+    _db_url = os.getenv('DATABASE_URL')
+    if not _db_url:
+        raise RuntimeError("DATABASE_URL environment variable not set")
+
     @app.teardown_appcontext
     def close(e):
         db = g.pop('db', None)
-        if db: db.close()
+        if db:
+            db.close()
 
 def get_db():
     if 'db' not in g:
-        g.db = pymysql.connect(**_cfg)
+        conn = psycopg2.connect(_db_url, sslmode='require')
+        conn.autocommit = False
+        g.db = conn
     return g.db
 
 def query(sql, args=(), one=False, commit=False):
+    # Rewrite %s-style placeholders (same as pymysql, so your routes stay untouched)
     db = get_db()
     try:
-        with db.cursor() as cur:
-            cur.execute(sql, args)
+        with db.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql, args or None)
             if commit:
                 db.commit()
-                return cur.lastrowid
+                return cur.lastrowid if cur.rowcount else None
             return cur.fetchone() if one else cur.fetchall()
     except Exception as e:
-        if commit: db.rollback()
+        if commit:
+            db.rollback()
         raise e
-
